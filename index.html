@@ -67,7 +67,11 @@ button:disabled{opacity:.4;}
 .msg-error{background:#f8d7da;color:#721c24;}
 
 .chart-scroll{overflow-x:auto;}
-.chart-scroll canvas{min-width:600px;}
+.chart-scroll canvas {
+  min-width: 480px;   /* 最低限 */
+  max-width: 900px;   /* ← これを追加 */
+}
+
 </style>
 </head>
 
@@ -250,4 +254,5 @@ setInterval(()=>{
 </script>
 </body>
 </html>
+
 
