@@ -232,7 +232,12 @@ function show(m,t="success"){
 }
 
 /* ===== 初期化 ===== */
-drawCrowdChart(new Date().getDay());
+/* ===== 初期化 ===== */
+const today = new Date().getDay();
+
+daySel.value = today;   // セレクタも今日に合わせる
+drawCrowdChart(today); // ← これがないとグラフが出ない
+
 drawReservationChart();
 updateTime();
 predictCrowd();
@@ -241,6 +246,8 @@ setInterval(()=>{
   updateTime();
   predictCrowd();
 },10000);
+
 </script>
 </body>
 </html>
+
