@@ -221,7 +221,7 @@ function predictCrowd() {
   const status = document.getElementById("statusBox");
   status.className = "status";
 
-  if (m < 930 || m > 1340) {
+  if (m < 930 || m > 1220) {
     status.textContent = "空いていません";
     status.classList.add("crowded");
     return;
@@ -352,4 +352,5 @@ setInterval(()=>{
 </script>
 </body>
 </html>
+
 
