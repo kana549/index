@@ -70,7 +70,7 @@ button:disabled{opacity:.4;}
 .chart-scroll canvas{
   min-width:360px;
   max-width:900px;
-  height:260px !important;
+  height:360px !important;
 }
 </style>
 </head>
@@ -171,7 +171,9 @@ function drawCrowdChart(day){
       maintainAspectRatio:false,
       scales:{
         x:{ticks:{autoSkip:true,maxTicksLimit:8}},
-        y:{min:0,max:100}
+        y:{ticks: {
+          padding: 10   // ← 時刻文字とバーの距離
+          }}
       }
     }
   });
@@ -249,6 +251,13 @@ function drawReservationChart(){
         backgroundColor:data.map(v=>v>=maxCapacity?"#f44336":"#ff9800")
       }]
     },
+    datasets: [{
+      data,
+      barThickness: 14,        // ← バー自体の太さ
+      categoryPercentage: 0.7, // ← 行全体に対する使用率
+      barPercentage: 0.6       // ← バーの占有率
+    }],
+
     options:{
       indexAxis:"y",          // ← ここが縦向き
       responsive:true,
