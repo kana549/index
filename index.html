@@ -1,71 +1,126 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <title>お風呂 混雑予測＆予約</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<meta charset="UTF-8">
+<title>お風呂 混雑予測＆予約</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <style>
-    body {
-      font-family: sans-serif;
-      background: #f2f6f8;
-      margin: 0;
-      padding: 20px;
-    }
-    .container {
-      max-width: 420px;
-      margin: auto;
-      background: #fff;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    }
-    h1 { text-align: center; font-size: 1.4rem; }
-    .time { text-align: center; color: #555; margin-bottom: 10px; }
-    .status {
-      text-align: center;
-      padding: 18px;
-      border-radius: 10px;
-      font-size: 1.2rem;
-      font-weight: bold;
-      margin-bottom: 15px;
-    }
-    .empty { background: #d4f8d4; color: #2e7d32; }
-    .crowded { background: #f8d7da; color: #721c24; }
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f2f6f8;
+  margin: 0;
+  padding: 12px;
+}
 
-    .reservation button {
-      width: 100%;
-      padding: 10px;
-      border: none;
-      border-radius: 8px;
-      color: #fff;
-      font-size: 1rem;
-      cursor: pointer;
-      margin-top: 8px;
-    }
-    .reserveBtn { background: #2196f3; }
-    .resetBtn { background: #f44336; }
+.container {
+  max-width: 420px;
+  margin: auto;
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px;
+}
 
-    #reserveResult {
-      margin-top: 10px;
-      padding: 10px;
-      border-radius: 8px;
-      font-weight: bold;
-      text-align: center;
-    }
-    .msg-success { background: #d4f8d4; color: #2e7d32; }
-    .msg-error { background: #f8d7da; color: #721c24; }
-  </style>
+h1 {
+  text-align: center;
+  font-size: 1.3rem;
+}
+
+.time {
+  text-align: center;
+  color: #555;
+  margin-bottom: 10px;
+}
+
+.status {
+  text-align: center;
+  padding: 20px;
+  border-radius: 12px;
+  font-size: 1.3rem;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+
+.empty {
+  background: #d4f8d4;
+  color: #2e7d32;
+}
+
+.crowded {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+input[type="time"] {
+  width: 100%;
+  font-size: 1.2rem;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  text-align: center;
+}
+
+.reservation button {
+  width: 100%;
+  height: 52px;
+  font-size: 1.1rem;
+  border-radius: 12px;
+  border: none;
+  color: #fff;
+  margin-top: 10px;
+}
+
+.reserveBtn {
+  background: #2196f3;
+}
+
+.resetBtn {
+  background: #f44336;
+}
+
+button:disabled {
+  opacity: 0.4;
+}
+
+#reserveResult {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.msg-success {
+  background: #d4f8d4;
+  color: #2e7d32;
+}
+
+.msg-error {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.chart-scroll {
+  overflow-x: auto;
+}
+
+.chart-scroll canvas {
+  min-width: 600px;
+}
+</style>
 </head>
 
 <body>
 <div class="container">
   <h1>🛁 お風呂 混雑予測＆予約</h1>
-  <div class="time" id="currentTime"></div>
-  <div class="status" id="statusBox">予測中…</div>
 
-  <canvas id="crowdChart"></canvas>
+  <div class="time" id="currentTime"></div>
+  <div class="status" id="statusBox">判定中…</div>
+
+  <div class="chart-scroll">
+    <canvas id="crowdChart"></canvas>
+  </div>
 
   <div class="reservation">
     <h2>利用予約</h2>
@@ -75,10 +130,13 @@
 
     <button id="reserveBtn" class="reserveBtn" onclick="reserve()">予約する</button>
     <button class="resetBtn" onclick="resetReservations()">予約を1人削除</button>
+
     <div id="reserveResult"></div>
 
-    <h2 style="margin-top:20px;">現在の予約状況</h2>
-    <canvas id="reservationChart"></canvas>
+    <h2 style="margin-top:20px;">予約状況</h2>
+    <div class="chart-scroll">
+      <canvas id="reservationChart"></canvas>
+    </div>
   </div>
 </div>
 
@@ -88,71 +146,65 @@ const maxCapacity = 10;
 const start = 15 * 60 + 30;
 const end   = 20 * 60 + 20;
 
-/* ===== 10分刻み時刻生成 ===== */
+/* ===== 10分刻み生成 ===== */
 const reserveLabels = [];
-for(let m = start; m <= end; m += 10){
-  const h = Math.floor(m / 60).toString().padStart(2,"0");
-  const mm = (m % 60).toString().padStart(2,"0");
+for(let m=start; m<=end; m+=10){
+  const h = String(Math.floor(m/60)).padStart(2,"0");
+  const mm = String(m%60).padStart(2,"0");
   reserveLabels.push(`${h}:${mm}`);
 }
 
-/* datalist に反映 */
+/* datalist */
 const dl = document.getElementById("timeList");
 reserveLabels.forEach(t=>{
-  const o = document.createElement("option");
-  o.value = t;
+  const o=document.createElement("option");
+  o.value=t;
   dl.appendChild(o);
 });
 
-/* ===== 時刻表示 ===== */
+/* 時刻表示 */
 function updateTime(){
-  const n = new Date();
+  const n=new Date();
   document.getElementById("currentTime").textContent =
-    `現在時刻：${n.getHours().toString().padStart(2,"0")}:${n.getMinutes().toString().padStart(2,"0")}`;
+    `現在時刻：${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`;
 }
 
-/* ===== メッセージ ===== */
+/* メッセージ */
 function showMessage(msg,type="success"){
-  const e = document.getElementById("reserveResult");
-  e.textContent = msg;
-  e.className = type === "success" ? "msg-success" : "msg-error";
+  const e=document.getElementById("reserveResult");
+  e.textContent=msg;
+  e.className=type==="success"?"msg-success":"msg-error";
 }
 
-/* ===== 利用可否判定 ===== */
+/* 予約可能判定 */
 function isReservableTime(t){
   if(!reserveLabels.includes(t)) return false;
-
-  const [h,m] = t.split(":").map(Number);
-  const sel = h*60+m;
-
-  const now = new Date();
-  const nowMin = now.getHours()*60 + now.getMinutes();
-
-  if(sel < start || sel > end) return false;
-  if(sel < nowMin) return false; // 過去不可
-
-  return true;
+  const [h,m]=t.split(":").map(Number);
+  const sel=h*60+m;
+  const now=new Date();
+  const nowMin=now.getHours()*60+now.getMinutes();
+  return sel>=start && sel<=end && sel>=nowMin;
 }
 
-/* ===== 混雑表示 ===== */
+/* ステータス */
 function predictCrowd(){
-  const n = new Date();
-  const m = n.getHours()*60+n.getMinutes();
-  const s = document.getElementById("statusBox");
+  const n=new Date();
+  const m=n.getHours()*60+n.getMinutes();
+  const s=document.getElementById("statusBox");
   s.className="status";
 
-  if(m < start || m > end){
-    s.textContent="空いていません";
+  if(m<start||m>end){
+    s.innerHTML="🚫 利用時間外";
     s.classList.add("crowded");
-    return;
+  }else{
+    s.innerHTML="🟢 利用可能";
+    s.classList.add("empty");
   }
-  s.textContent="利用可能";
-  s.classList.add("empty");
 }
 
-/* ===== 予約処理 ===== */
+/* 予約保存 */
 function loadReservations(){
-  return JSON.parse(localStorage.getItem("bathReservations")) || {};
+  return JSON.parse(localStorage.getItem("bathReservations"))||{};
 }
 function saveReservations(d){
   localStorage.setItem("bathReservations",JSON.stringify(d));
@@ -161,15 +213,16 @@ function saveReservations(d){
 let reservationChart;
 
 function reserve(){
-  const t = document.getElementById("reserveTime").value;
+  if(navigator.vibrate) navigator.vibrate(20);
 
+  const t=document.getElementById("reserveTime").value;
   if(!isReservableTime(t)){
     showMessage("この時間は予約できません","error");
     return;
   }
 
-  const r = loadReservations();
-  if((r[t]||0) >= maxCapacity){
+  const r=loadReservations();
+  if((r[t]||0)>=maxCapacity){
     showMessage("満員です","error");
     return;
   }
@@ -181,8 +234,8 @@ function reserve(){
 }
 
 function resetReservations(){
-  const t = document.getElementById("reserveTime").value;
-  const r = loadReservations();
+  const t=document.getElementById("reserveTime").value;
+  const r=loadReservations();
   if(!r[t]){
     showMessage("予約がありません","error");
     return;
@@ -195,25 +248,24 @@ function resetReservations(){
 }
 
 function drawReservationChart(){
-  const data = reserveLabels.map(t=>loadReservations()[t]||0);
+  const data=reserveLabels.map(t=>loadReservations()[t]||0);
   if(reservationChart) reservationChart.destroy();
-  reservationChart = new Chart(document.getElementById("reservationChart"),{
+  reservationChart=new Chart(document.getElementById("reservationChart"),{
     type:"bar",
     data:{labels:reserveLabels,datasets:[{data}]},
     options:{scales:{y:{min:0,max:maxCapacity}}}
   });
 }
 
-/* ===== ボタン制御 ===== */
+/* ボタン制御 */
 function updateReserveButton(){
-  const n = new Date();
-  const m = n.getHours()*60+n.getMinutes();
-  const b = document.getElementById("reserveBtn");
-  b.disabled = (m < start || m > end);
-  b.style.opacity = b.disabled ? 0.5 : 1;
+  const n=new Date();
+  const m=n.getHours()*60+n.getMinutes();
+  const b=document.getElementById("reserveBtn");
+  b.disabled = (m<start||m>end);
 }
 
-/* ===== 初期化 ===== */
+/* 初期化 */
 updateTime();
 predictCrowd();
 drawReservationChart();
