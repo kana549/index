@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>お風呂 混雑予測＆予約（URL共有）</title>
+<title>お風呂 混雑予測＆予約（URL自動共有）</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -33,7 +33,7 @@ h1{text-align:center;font-size:1.3rem;}
 .empty{background:#d4f8d4;color:#2e7d32;}
 .crowded{background:#f8d7da;color:#721c24;}
 
-select,input[type="time"]{
+input[type="time"]{
   width:100%;
   font-size:1.1rem;
   padding:12px;
@@ -54,8 +54,7 @@ button{
 }
 .reserveBtn{background:#2196f3;}
 .resetBtn{background:#f44336;}
-.shareBtn{background:#4caf50;}
-button:disabled{opacity:.4;}
+.copyBtn{background:#4caf50;}
 
 #reserveResult{
   margin-top:10px;
@@ -83,12 +82,12 @@ button:disabled{opacity:.4;}
 <div class="time" id="currentTime"></div>
 <div class="status" id="statusBox">判定中…</div>
 
-<h2>利用予約（URL共有）</h2>
+<h2>利用予約（URL自動共有）</h2>
 
 <input type="time" id="reserveTime">
 <button class="reserveBtn" onclick="reserve()">予約する</button>
 <button class="resetBtn" onclick="resetReservations()">予約を1人削除</button>
-<button class="shareBtn" onclick="shareURL()">予約URLを作成</button>
+<button class="copyBtn" onclick="copyURL()">URLをコピー</button>
 
 <div id="reserveResult"></div>
 
@@ -123,8 +122,8 @@ function decodeData(str){
 /* ===== 予約データ ===== */
 let sharedReservations = {};
 
-/* 起動時URL読み込み */
-(function(){
+/* 起動時：URLから復元 */
+(function loadFromURL(){
   const p = new URLSearchParams(location.search);
   if(p.has("data")){
     try{
@@ -140,6 +139,16 @@ function loadReservations(){
 }
 function saveReservations(d){
   sharedReservations = d;
+}
+
+/* ===== URL自動更新 ===== */
+function updateURL(){
+  const data = encodeData(loadReservations());
+  const newURL =
+    location.origin +
+    location.pathname +
+    "?data=" + data;
+  history.replaceState(null, "", newURL);
 }
 
 /* ===== 時刻表示 ===== */
@@ -197,6 +206,7 @@ function reserve(){
 
   r[t]=(r[t]||0)+1;
   saveReservations(r);
+  updateURL();                // ★ 自動URL更新
   showMessage(`${t} に予約しました（${r[t]}人目）`);
   drawReservationChart();
 }
@@ -217,16 +227,15 @@ function resetReservations(){
   r[t]--;
   if(r[t]<=0) delete r[t];
   saveReservations(r);
+  updateURL();                // ★ 自動URL更新
   showMessage("1人削除しました");
   drawReservationChart();
 }
 
-/* ===== URL共有 ===== */
-function shareURL(){
-  const data = encodeData(loadReservations());
-  const url = location.origin + location.pathname + "?data=" + data;
-  navigator.clipboard.writeText(url);
-  showMessage("共有URLをコピーしました");
+/* ===== URLコピー ===== */
+function copyURL(){
+  navigator.clipboard.writeText(location.href);
+  showMessage("現在のURLをコピーしました");
 }
 
 /* ===== 予約グラフ ===== */
