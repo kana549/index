@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>お風呂 予約共有（Google Sheets）</title>
+<title>お風呂 予約共有</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -21,13 +21,28 @@ body{
   padding:16px;
 }
 h1{text-align:center;font-size:1.3rem;}
+.time{text-align:center;color:#555;margin-bottom:8px;}
+.status{
+  text-align:center;
+  padding:18px;
+  border-radius:12px;
+  font-size:1.2rem;
+  font-weight:bold;
+  margin-bottom:14px;
+}
+.empty{background:#d4f8d4;color:#2e7d32;}
+.crowded{background:#f8d7da;color:#721c24;}
+
 input[type="time"]{
   width:100%;
   font-size:1.1rem;
   padding:12px;
   border-radius:10px;
   border:1px solid #ccc;
+  text-align:center;
+  margin-bottom:8px;
 }
+
 button{
   width:100%;
   height:52px;
@@ -39,39 +54,50 @@ button{
 }
 .reserveBtn{background:#2196f3;}
 .resetBtn{background:#f44336;}
+button:disabled{opacity:.4;}
 
-#msg{
+#reserveResult{
   margin-top:10px;
   padding:10px;
   border-radius:8px;
-  text-align:center;
   font-weight:bold;
+  text-align:center;
 }
+.msg-success{background:#d4f8d4;color:#2e7d32;}
+.msg-error{background:#f8d7da;color:#721c24;}
 
 .chart-scroll{overflow-x:auto;}
-canvas{height:260px!important;}
+.chart-scroll canvas{
+  min-width:360px;
+  height:260px !important;
+}
 </style>
 </head>
 
 <body>
 <div class="container">
-<h1>🛁 お風呂 予約共有</h1>
+<h1>🛁 お風呂 予約（共有）</h1>
 
-<input type="time" id="reserveTime">
-<button class="reserveBtn" onclick="reserve(1)">予約する</button>
-<button class="resetBtn" onclick="reserve(-1)">1人削除</button>
+<div class="time" id="currentTime"></div>
+<div class="status" id="statusBox">判定中…</div>
 
-<div id="msg"></div>
+<input type="time" id="reserveTime" list="timeList">
+<datalist id="timeList"></datalist>
 
-<h2>予約状況</h2>
+<button class="reserveBtn" onclick="reserve()">予約する</button>
+<button class="resetBtn" onclick="removeReservation()">1人削除</button>
+
+<div id="reserveResult"></div>
+
+<h2 style="margin-top:16px;">予約状況</h2>
 <div class="chart-scroll">
-  <canvas id="chart"></canvas>
+  <canvas id="reservationChart"></canvas>
 </div>
 </div>
 
 <script>
 /* ===== 設定 ===== */
-const API_URL = https://script.google.com/macros/s/AKfycbxiaoJXDcJFMSLaNoFd-kdCppuiYo6fF7J_eKndScXBParStnnCopySAz1dbbmjJlJAlw/exec"★ここにApps ScriptのURL★";
+const API_URL = "https://script.google.com/macros/s/XXXXX/exec"; // ←ここ！
 const maxCapacity = 10;
 const start = 15*60+30;
 const end   = 20*60+20;
@@ -80,58 +106,98 @@ const end   = 20*60+20;
 const timeLabels=[];
 for(let m=start;m<=end;m+=10){
   timeLabels.push(
-    String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0")
+    String(Math.floor(m/60)).padStart(2,"0")+":"+
+    String(m%60).padStart(2,"0")
   );
 }
 
+/* ===== datalist ===== */
+const dl=document.getElementById("timeList");
+timeLabels.forEach(t=>{
+  const o=document.createElement("option");
+  o.value=t;
+  dl.appendChild(o);
+});
+
+/* ===== 現在時刻 ===== */
+function updateTime(){
+  const n=new Date();
+  document.getElementById("currentTime").textContent =
+    `現在時刻：${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`;
+}
+
+/* ===== 利用時間判定 ===== */
+function predictStatus(){
+  const n=new Date();
+  const m=n.getHours()*60+n.getMinutes();
+  const s=document.getElementById("statusBox");
+  s.className="status";
+  if(m<start || m>end){
+    s.textContent="🚫 利用時間外";
+    s.classList.add("crowded");
+  }else{
+    s.textContent="🟢 利用可能";
+    s.classList.add("empty");
+  }
+}
+
 /* ===== メッセージ ===== */
-function show(msg){
-  const e=document.getElementById("msg");
+function showMessage(msg,type="success"){
+  const e=document.getElementById("reserveResult");
   e.textContent=msg;
+  e.className=type==="success"?"msg-success":"msg-error";
 }
 
 /* ===== データ取得 ===== */
 async function loadReservations(){
-  const r = await fetch(API_URL);
-  return await r.json();
+  const res = await fetch(API_URL);
+  return await res.json();
 }
 
 /* ===== 更新 ===== */
-async function updateReservation(time, delta){
+async function updateReservation(time,delta){
   await fetch(API_URL,{
     method:"POST",
-    body:JSON.stringify({time, delta})
+    body:JSON.stringify({time,delta})
   });
 }
 
-/* ===== 予約処理 ===== */
-async function reserve(delta){
+/* ===== 予約 ===== */
+async function reserve(){
   const t=document.getElementById("reserveTime").value;
-  if(!t){ show("時刻を入力してください"); return; }
-
-  const [h,m]=t.split(":").map(Number);
-  const min=h*60+m;
-  const now=new Date();
-  const nowMin=now.getHours()*60+now.getMinutes();
-
-  if(min<start||min>end||min<nowMin){
-    show("この時間は利用できません");
+  if(!t){
+    showMessage("時刻を入力してください","error");
     return;
   }
+  const r=await loadReservations();
+  if((r[t]||0)>=maxCapacity){
+    showMessage("満員です","error");
+    return;
+  }
+  await updateReservation(t,+1);
+  showMessage(`${t} に予約しました`);
+  drawReservationChart();
+}
 
-  await updateReservation(t, delta);
-  show(delta>0?"予約しました":"削除しました");
-  drawChart();
+async function removeReservation(){
+  const t=document.getElementById("reserveTime").value;
+  if(!t){
+    showMessage("時刻を入力してください","error");
+    return;
+  }
+  await updateReservation(t,-1);
+  showMessage("1人削除しました");
+  drawReservationChart();
 }
 
 /* ===== グラフ ===== */
-let chart;
-async function drawChart(){
-  const res = await loadReservations();
-  const data = timeLabels.map(t=>res[t]||0);
+let reservationChart;
+async function drawReservationChart(){
+  const r=await loadReservations();
+  const data=timeLabels.map(t=>r[t]||0);
 
-  if(chart) chart.destroy();
-  chart=new Chart(document.getElementById("chart"),{
+  if(reservationChart) reservationChart.destroy();
+  reservationChart=new Chart(reservationChartCanvas,{
     type:"bar",
     data:{
       labels:timeLabels,
@@ -142,16 +208,24 @@ async function drawChart(){
     },
     options:{
       indexAxis:"y",
+      responsive:true,
+      maintainAspectRatio:false,
       scales:{x:{min:0,max:maxCapacity}},
       plugins:{legend:{display:false}}
     }
   });
 }
+const reservationChartCanvas=document.getElementById("reservationChart");
 
-/* ===== 自動更新 ===== */
-drawChart();
-setInterval(drawChart,5000);
+/* ===== 初期化 ===== */
+updateTime();
+predictStatus();
+drawReservationChart();
+setInterval(()=>{
+  updateTime();
+  predictStatus();
+  drawReservationChart();
+},5000);
 </script>
 </body>
 </html>
-
