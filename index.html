@@ -77,7 +77,7 @@ button:disabled{opacity:.4;}
 
 <body>
 <div class="container">
-<h1>お風呂 混雑予測＆予約</h1>
+<h1>🛁 お風呂 混雑予測＆予約</h1>
 
 <div class="time" id="currentTime"></div>
 <div class="status" id="statusBox">判定中…</div>
@@ -93,7 +93,7 @@ button:disabled{opacity:.4;}
 <input type="time" id="reserveTime" list="timeList">
 <datalist id="timeList"></datalist>
 
-<button id="reserveBtn" class="reserveBtn" onclick="reserve()">予約する</button>
+<button class="reserveBtn" onclick="reserve()">予約する</button>
 <button class="resetBtn" onclick="resetReservations()">予約を1人削除</button>
 
 <div id="reserveResult"></div>
@@ -105,10 +105,10 @@ button:disabled{opacity:.4;}
 </div>
 
 <script>
-/* ===== 基本 ===== */
-const maxCapacity=10;
-const start=15*60+30;
-const end=20*60+20;
+/* ===== 基本設定 ===== */
+const maxCapacity = 10;
+const start = 15*60+30;
+const end   = 20*60+20;
 
 /* ===== 曜日別混雑データ ===== */
 const crowdDataByDay={
@@ -152,12 +152,11 @@ days.forEach((d,i)=>{
 let crowdChart;
 function drawCrowdChart(day){
   if(crowdChart) crowdChart.destroy();
-  crowdChart=new Chart(document.getElementById("crowdChart"),{
+  crowdChart=new Chart(crowdChartCanvas,{
     type:"line",
     data:{
       labels:timeLabels,
       datasets:[{
-        label:"混雑度(%)",
         data:crowdDataByDay[day],
         borderColor:"#2196f3",
         backgroundColor:"rgba(33,150,243,.2)",
@@ -169,13 +168,11 @@ function drawCrowdChart(day){
     options:{
       responsive:true,
       maintainAspectRatio:false,
-      scales:{
-        x:{ticks:{autoSkip:true,maxTicksLimit:8}},
-        y:{min:0,max:100}
-      }
+      scales:{y:{min:0,max:100}}
     }
   });
 }
+const crowdChartCanvas=document.getElementById("crowdChart");
 daySel.onchange=()=>drawCrowdChart(daySel.value);
 
 /* ===== 時刻・ステータス ===== */
@@ -198,41 +195,74 @@ function predictCrowd(){
   }
 }
 
+/* ===== メッセージ ===== */
+function showMessage(msg,type="success"){
+  const e=document.getElementById("reserveResult");
+  e.textContent=msg;
+  e.className=type==="success"?"msg-success":"msg-error";
+}
+
 /* ===== 予約処理 ===== */
-function loadReservations(){return JSON.parse(localStorage.getItem("bathReservations"))||{};}
-function saveReservations(d){localStorage.setItem("bathReservations",JSON.stringify(d));}
+function loadReservations(){
+  return JSON.parse(localStorage.getItem("bathReservations"))||{};
+}
+function saveReservations(d){
+  localStorage.setItem("bathReservations",JSON.stringify(d));
+}
 
 let reservationChart;
 
 function reserve(){
-  const t = document.getElementById("reserveTime").value;
-
-  // ⬇️ ここを変更
+  const t=document.getElementById("reserveTime").value;
   if(!t){
     showMessage("時刻を記入してください","error");
     return;
   }
 
-  const r = loadReservations();
-  if((r[t] || 0) >= maxCapacity){
-    showMessage(`${t} は満員です`, "error");
+  const [h,m]=t.split(":").map(Number);
+  const min=h*60+m;
+
+  if(min<start||min>end){
+    showMessage("この時間は予約できません","error");
     return;
   }
 
-  r[t] = (r[t] || 0) + 1;
+  const now=new Date();
+  const nowMin=now.getHours()*60+now.getMinutes();
+  if(min<nowMin){
+    showMessage("過去の時間は予約できません","error");
+    return;
+  }
+
+  const r=loadReservations();
+  if((r[t]||0)>=maxCapacity){
+    showMessage(`${t} は満員です`,"error");
+    return;
+  }
+
+  r[t]=(r[t]||0)+1;
   saveReservations(r);
   showMessage(`${t} に予約しました（${r[t]}人目）`);
   drawReservationChart();
 }
 
-
 function resetReservations(){
-  const t=reserveTime.value;
+  const t=document.getElementById("reserveTime").value;
+  if(!t){
+    showMessage("時刻を記入してください","error");
+    return;
+  }
+
   const r=loadReservations();
-  if(!r[t]){show("予約なし","error");return;}
-  r[t]--; if(r[t]<=0) delete r[t];
+  if(!r[t]){
+    showMessage("その時間に予約はありません","error");
+    return;
+  }
+
+  r[t]--;
+  if(r[t]<=0) delete r[t];
   saveReservations(r);
-  show("1人削除しました");
+  showMessage("1人削除しました");
   drawReservationChart();
 }
 
@@ -240,7 +270,7 @@ function resetReservations(){
 function drawReservationChart(){
   const data=timeLabels.map(t=>loadReservations()[t]||0);
   if(reservationChart) reservationChart.destroy();
-  reservationChart=new Chart(document.getElementById("reservationChart"),{
+  reservationChart=new Chart(reservationChartCanvas,{
     type:"bar",
     data:{
       labels:timeLabels,
@@ -250,23 +280,15 @@ function drawReservationChart(){
       }]
     },
     options:{
-      indexAxis:"y",          // ← ここが縦向き
+      indexAxis:"y",
       responsive:true,
       maintainAspectRatio:false,
-      scales:{
-        x:{min:0,max:maxCapacity},
-        y:{ticks:{autoSkip:false}}
-      },
+      scales:{x:{min:0,max:maxCapacity}},
       plugins:{legend:{display:false}}
     }
   });
 }
-
-function show(m,t="success"){
-  const e=document.getElementById("reserveResult");
-  e.textContent=m;
-  e.className=t==="success"?"msg-success":"msg-error";
-}
+const reservationChartCanvas=document.getElementById("reservationChart");
 
 /* ===== 初期化 ===== */
 const today=new Date().getDay();
@@ -275,11 +297,7 @@ drawCrowdChart(today);
 drawReservationChart();
 updateTime();
 predictCrowd();
-
-setInterval(()=>{
-  updateTime();
-  predictCrowd();
-},10000);
+setInterval(()=>{updateTime();predictCrowd();},10000);
 </script>
 </body>
 </html>
