@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>お風呂 混雑予測＆予約</title>
+<title>お風呂 混雑予測＆予約（URL共有）</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -54,6 +54,7 @@ button{
 }
 .reserveBtn{background:#2196f3;}
 .resetBtn{background:#f44336;}
+.shareBtn{background:#4caf50;}
 button:disabled{opacity:.4;}
 
 #reserveResult{
@@ -82,19 +83,12 @@ button:disabled{opacity:.4;}
 <div class="time" id="currentTime"></div>
 <div class="status" id="statusBox">判定中…</div>
 
-<select id="daySelect"></select>
+<h2>利用予約（URL共有）</h2>
 
-<div class="chart-scroll">
-  <canvas id="crowdChart"></canvas>
-</div>
-
-<h2>利用予約（今日のみ）</h2>
-
-<input type="time" id="reserveTime" list="timeList">
-<datalist id="timeList"></datalist>
-
+<input type="time" id="reserveTime">
 <button class="reserveBtn" onclick="reserve()">予約する</button>
 <button class="resetBtn" onclick="resetReservations()">予約を1人削除</button>
+<button class="shareBtn" onclick="shareURL()">予約URLを作成</button>
 
 <div id="reserveResult"></div>
 
@@ -110,17 +104,6 @@ const maxCapacity = 10;
 const start = 15*60+30;
 const end   = 20*60+20;
 
-/* ===== 曜日別混雑データ ===== */
-const crowdDataByDay={
-0:[40,45,50,55,60,65,70,72,75,78,80,82,85,87,88,90,90,92,93,94,95,96,97,97,98,98,99,99,99,98],
-1:[15,18,20,25,30,35,40,42,45,50,55,60,65,65,64,66,68,70,72,73,75,78,80,82,83,84,85,87,88,85],
-2:[18,20,22,28,32,36,42,45,48,52,58,62,66,66,65,67,69,71,73,75,77,80,82,84,85,86,87,89,90,88],
-3:[20,22,25,30,35,40,45,48,50,55,60,65,70,70,69,71,72,74,76,78,80,83,85,87,88,89,90,92,93,90],
-4:[22,25,28,32,37,42,47,50,53,58,63,68,72,72,71,73,75,77,79,81,83,86,88,89,90,91,92,94,95,92],
-5:[30,35,40,45,50,55,60,63,65,70,75,80,85,85,84,86,87,88,89,90,91,92,93,94,95,96,97,98,98,97],
-6:[35,40,45,50,55,60,65,68,70,75,80,85,90,90,89,91,92,93,94,95,96,97,98,98,99,99,99,99,99,98]
-};
-
 /* ===== 時刻ラベル ===== */
 const timeLabels=[];
 for(let m=start;m<=end;m+=10){
@@ -129,58 +112,44 @@ for(let m=start;m<=end;m+=10){
   );
 }
 
-/* ===== datalist ===== */
-const dl=document.getElementById("timeList");
-timeLabels.forEach(t=>{
-  const o=document.createElement("option");
-  o.value=t;
-  dl.appendChild(o);
-});
-
-/* ===== 曜日セレクタ ===== */
-const days=["日","月","火","水","木","金","土"];
-const daySel=document.getElementById("daySelect");
-days.forEach((d,i)=>{
-  const o=document.createElement("option");
-  o.value=i;
-  o.textContent=d+"曜日";
-  if(i===new Date().getDay()) o.selected=true;
-  daySel.appendChild(o);
-});
-
-/* ===== 混雑グラフ ===== */
-let crowdChart;
-function drawCrowdChart(day){
-  if(crowdChart) crowdChart.destroy();
-  crowdChart=new Chart(crowdChartCanvas,{
-    type:"line",
-    data:{
-      labels:timeLabels,
-      datasets:[{
-        data:crowdDataByDay[day],
-        borderColor:"#2196f3",
-        backgroundColor:"rgba(33,150,243,.2)",
-        fill:true,
-        tension:.3,
-        pointRadius:2
-      }]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      scales:{y:{min:0,max:100}}
-    }
-  });
+/* ===== URL共有用 ===== */
+function encodeData(obj){
+  return btoa(encodeURIComponent(JSON.stringify(obj)));
 }
-const crowdChartCanvas=document.getElementById("crowdChart");
-daySel.onchange=()=>drawCrowdChart(daySel.value);
+function decodeData(str){
+  return JSON.parse(decodeURIComponent(atob(str)));
+}
 
-/* ===== 時刻・ステータス ===== */
+/* ===== 予約データ ===== */
+let sharedReservations = {};
+
+/* 起動時URL読み込み */
+(function(){
+  const p = new URLSearchParams(location.search);
+  if(p.has("data")){
+    try{
+      sharedReservations = decodeData(p.get("data"));
+    }catch{
+      sharedReservations = {};
+    }
+  }
+})();
+
+function loadReservations(){
+  return sharedReservations;
+}
+function saveReservations(d){
+  sharedReservations = d;
+}
+
+/* ===== 時刻表示 ===== */
 function updateTime(){
   const n=new Date();
   document.getElementById("currentTime").textContent=
     `現在時刻：${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`;
 }
+
+/* ===== ステータス ===== */
 function predictCrowd(){
   const n=new Date();
   const m=n.getHours()*60+n.getMinutes();
@@ -203,34 +172,20 @@ function showMessage(msg,type="success"){
 }
 
 /* ===== 予約処理 ===== */
-function loadReservations(){
-  return JSON.parse(localStorage.getItem("bathReservations"))||{};
-}
-function saveReservations(d){
-  localStorage.setItem("bathReservations",JSON.stringify(d));
-}
-
-let reservationChart;
-
 function reserve(){
   const t=document.getElementById("reserveTime").value;
   if(!t){
-    showMessage("時刻を記入してください","error");
+    showMessage("時刻を入力してください","error");
     return;
   }
 
   const [h,m]=t.split(":").map(Number);
   const min=h*60+m;
-
-  if(min<start||min>end){
-    showMessage("この時間は予約できません","error");
-    return;
-  }
-
   const now=new Date();
   const nowMin=now.getHours()*60+now.getMinutes();
-  if(min<nowMin){
-    showMessage("過去の時間は予約できません","error");
+
+  if(min<start||min>end||min<nowMin){
+    showMessage("この時間は予約できません","error");
     return;
   }
 
@@ -249,7 +204,7 @@ function reserve(){
 function resetReservations(){
   const t=document.getElementById("reserveTime").value;
   if(!t){
-    showMessage("時刻を記入してください","error");
+    showMessage("時刻を入力してください","error");
     return;
   }
 
@@ -266,7 +221,18 @@ function resetReservations(){
   drawReservationChart();
 }
 
-/* ===== 予約グラフ（縦向き） ===== */
+/* ===== URL共有 ===== */
+function shareURL(){
+  const data = encodeData(loadReservations());
+  const url = location.origin + location.pathname + "?data=" + data;
+  navigator.clipboard.writeText(url);
+  showMessage("共有URLをコピーしました");
+}
+
+/* ===== 予約グラフ ===== */
+let reservationChart;
+const reservationChartCanvas=document.getElementById("reservationChart");
+
 function drawReservationChart(){
   const data=timeLabels.map(t=>loadReservations()[t]||0);
   if(reservationChart) reservationChart.destroy();
@@ -288,15 +254,11 @@ function drawReservationChart(){
     }
   });
 }
-const reservationChartCanvas=document.getElementById("reservationChart");
 
 /* ===== 初期化 ===== */
-const today=new Date().getDay();
-daySel.value=today;
-drawCrowdChart(today);
-drawReservationChart();
 updateTime();
 predictCrowd();
+drawReservationChart();
 setInterval(()=>{updateTime();predictCrowd();},10000);
 </script>
 </body>
