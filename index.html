@@ -182,16 +182,29 @@ function updateTime(){
     `現在時刻：${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`;
 }
 function predictCrowd(){
-  const n=new Date();
-  const m=n.getHours()*60+n.getMinutes();
-  const s=document.getElementById("statusBox");
-  s.className="status";
-  if(m<start||m>end){
-    s.textContent="🚫 利用時間外";
-    s.classList.add("crowded");
+  const now = new Date();
+  const day = now.getDay();
+  const currentMin = now.getHours()*60 + now.getMinutes();
+  const status = document.getElementById("statusBox");
+  status.className = "status";
+
+  // 利用時間外
+  if(currentMin < start || currentMin > end){
+    status.textContent = "🚫 利用時間外";
+    status.classList.add("crowded");
+    return;
+  }
+
+  // 何番目の10分枠か
+  const index = Math.floor((currentMin - start) / 10);
+  const crowdRate = crowdDataByDay[day][index];
+
+  if(crowdRate >= 70){
+    status.textContent = `🔴 混雑しています（${crowdRate}%）`;
+    status.classList.add("crowded");
   }else{
-    s.textContent="🟢 利用可能";
-    s.classList.add("empty");
+    status.textContent = `🟢 空いています（${crowdRate}%）`;
+    status.classList.add("empty");
   }
 }
 
